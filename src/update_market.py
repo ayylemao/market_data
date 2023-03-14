@@ -1,6 +1,8 @@
 import os
 import logging
 import datetime
+import subprocess
+
 import mysql.connector
 import pandas as pd
 import pandas_gbq
@@ -15,11 +17,13 @@ OPT_DB_DIR = f'{DB_DIR}/options'
 STO_DB_DIR = f'{DB_DIR}/stocks'
 PROJECT_ID = 'impvoltracker'
 
+
+
 logging.basicConfig(filename=f'{ROOT}/logs/update_market.log',
                     filemode='a',
                     format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                    datefmt='%H:%M:%S',
-                    level=logging.DEBUG)
+                    datefmt='%Y-%m-%d %H:%M',
+                    level=logging.INFO)
 logger = logging.getLogger(name=__name__)
 
 
@@ -75,7 +79,6 @@ except Exception as err:
 dflast_mod['last_modified'] = dflast_mod['last_modified'].dt.tz_localize(None)
 
 
-
 # fetch last written date from option chain on BQ
 bq_table_id = 'option_chain'
 local_db_name = 'options'
@@ -89,12 +92,12 @@ dfoptions['expiration'] = pd.to_datetime(dfoptions['expiration'], format='%Y-%m-
 # If there are more than zero rows added since last update, push to gbq
 if added_rows > 0:
     try:
-#            pandas_gbq.to_gbq(dfoptions, f'market_data.{bq_table_id}', project_id='impvoltracker', if_exists='append')
+            pandas_gbq.to_gbq(dfoptions, f'market_data.{bq_table_id}', project_id='impvoltracker', if_exists='append')
             logger.info(f'Sucessfully pushed {added_rows} rows to TABLE {bq_table_id} on BQ')
     except Exception as err:
         logger.critical(f'There was an error in pushing {added_rows} rows to TABLE {bq_table_id} with error: \n {err}')
 else:
-    logger.info(f'No data has been written to TABLE {bq_table_id} since no rows have been added')
+    logger.info(f'No data has been written to TABLE {bq_table_id} since no new data is available')
 
 # fetch last written date from option chain on BQ
 bq_table_id = 'volatility_history'
@@ -111,12 +114,12 @@ if added_rows > 0:
     dfvol['iv_year_low_date'] = pd.to_datetime(dfvol['iv_year_low_date'], format='%Y-%m-%d')
 
     try:
-        #pandas_gbq.to_gbq(dfvol, f'market_data.{bq_table_id}', project_id='impvoltracker', if_exists='append')
+        pandas_gbq.to_gbq(dfvol, f'market_data.{bq_table_id}', project_id='impvoltracker', if_exists='append')
         logger.info(f'Sucessfully pushed {added_rows} rows to TABLE {bq_table_id} on BQ')
     except Exception as err:
         logger.info(f'There was an error in pushing {added_rows} rows to TABLE {bq_table_id} with error: \n {err}')
 else:
-    logger.info(f'No data has been written to TABLE {bq_table_id} since no rows have been added')
+    logger.info(f'No data has been written to TABLE {bq_table_id} since no new data is available')
 
 
 bq_table_id = 'stock_ohlcv'
@@ -133,9 +136,16 @@ if added_rows > 0:
     except Exception as err:
         logger.info(f'There was an error in pushing {added_rows} rows to TABLE {bq_table_id} with error: \n {err}')
 else:
-    logger.info(f'No data has been written to TABLE {bq_table_id} since no rows have been added')
-
-
-logger.info('========================== End of execution ===========================')
+    logger.info(f'No data has been written to TABLE {bq_table_id} since no new data is available')
 
 cursor.close()
+
+
+# TODO
+# Fast forward DB
+
+
+#logger.info(f'Fast forwarded database OPTIONS ff status {ff} and {conflicts} conflicts!')
+cursor.close()
+logger.info('========================== End of execution ===========================')
+
