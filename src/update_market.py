@@ -4,6 +4,7 @@ import datetime
 import subprocess
 
 import mysql.connector
+import pymysql.cursors
 import pandas as pd
 import pandas_gbq
 from google.cloud import bigquery
@@ -31,8 +32,10 @@ logger.info('========================== Start of Execution =====================
 
 def get_new_data(cnx, bq_table_id, local_table_name, local_database, dflast_mod):
     # USE OPTION DATABASE
-    sel_base_q = f'use {local_database};'
+    sel_base_q = f'use {local_database};' 
+    cursor = cnx.cursor()
     cursor.execute(sel_base_q)
+    cursor.close()
     # fetch last written date from option chain on BQ
     last_mod = dflast_mod[dflast_mod['table_id']==bq_table_id].iloc[0, 1]
     lower_date = (last_mod - datetime.timedelta(days=15)).strftime('%Y-%m-%d')
@@ -67,7 +70,6 @@ try:
 except Exception as err:
     logger.critical(f'Could not connect to DOLT database with exception \n {err}')
     exit()
-cursor = cnx.cursor()
 
 # get latest BQ Updates
 latest_updates_query = 'SELECT table_id, timestamp_millis(last_modified_time) as last_modified from impvoltracker.market_data.__TABLES__'
@@ -138,14 +140,28 @@ if added_rows > 0:
 else:
     logger.info(f'No data has been written to TABLE {bq_table_id} since no new data is available')
 
+
+cnx.close()
+
+# Fast forward DB using different my sql library for now, need to refactor
+connection = pymysql.connect(host='localhost', user='root')
+cursor = connection.cursor()
+# First options 
+cursor.execute('use options;')
+logger.info('Fast forwarding options...')
+res = pd.read_sql('call dolt_pull();', connection)
+ff = bool(res.iloc[0,0])
+conflicts = res.iloc[0,1]
+logger.info(f'Fast forwarded database options with ff equals {ff} and {conflicts} conflicts')
 cursor.close()
-
-
-# TODO
-# Fast forward DB
-
-
-#logger.info(f'Fast forwarded database OPTIONS ff status {ff} and {conflicts} conflicts!')
+cursor = connection.cursor()
+cursor.execute('use stocks;')
+res = pd.read_sql('call dolt_pull();', connection)
+ff = bool(res.iloc[0,0])
+conflicts = res.iloc[0,1]
+logger.info(f'Fast forwarded database stocks with ff equals {ff} and {conflicts} conflicts')
 cursor.close()
+connection.close()
+
 logger.info('========================== End of execution ===========================')
 
