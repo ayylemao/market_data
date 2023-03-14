@@ -148,18 +148,17 @@ connection = pymysql.connect(host='localhost', user='root')
 cursor = connection.cursor()
 # First options 
 cursor.execute('use options;')
-logger.info('Fast forwarding options...')
 res = pd.read_sql('call dolt_pull();', connection)
 ff = bool(res.iloc[0,0])
 conflicts = res.iloc[0,1]
-logger.info(f'Fast forwarded database options with ff equals {ff} and {conflicts} conflicts')
+logger.info(f'Fast forwarded database OPTIONS with ff equals {ff} and {conflicts} conflicts')
 cursor.close()
 cursor = connection.cursor()
 cursor.execute('use stocks;')
 res = pd.read_sql('call dolt_pull();', connection)
 ff = bool(res.iloc[0,0])
 conflicts = res.iloc[0,1]
-logger.info(f'Fast forwarded database stocks with ff equals {ff} and {conflicts} conflicts')
+logger.info(f'Fast forwarded database STOCKS with ff equals {ff} and {conflicts} conflicts')
 cursor.close()
 connection.close()
 
