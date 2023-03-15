@@ -57,6 +57,26 @@ def get_new_data(cnx, bq_table_id, local_table_name, local_database, dflast_mod)
     return pd.read_sql(query, cnx)
 
 
+# Fast forward DB using different my sql library for now, need to refactor
+connection = pymysql.connect(host='localhost', user='root')
+cursor = connection.cursor()
+# First options 
+cursor.execute('use options;')
+res = pd.read_sql('call dolt_pull();', connection)
+ff = bool(res.iloc[0,0])
+conflicts = res.iloc[0,1]
+logger.info(f'Fast forwarded database OPTIONS with ff equals {ff} and {conflicts} conflicts')
+cursor.close()
+cursor = connection.cursor()
+cursor.execute('use stocks;')
+res = pd.read_sql('call dolt_pull();', connection)
+ff = bool(res.iloc[0,0])
+conflicts = res.iloc[0,1]
+logger.info(f'Fast forwarded database STOCKS with ff equals {ff} and {conflicts} conflicts')
+cursor.close()
+connection.close()
+
+
 # Set Up Connections
 # BQ
 try:
@@ -131,7 +151,8 @@ dfohlcv = get_new_data(cnx=cnx, bq_table_id=bq_table_id, local_table_name=local_
 added_rows = dfohlcv.shape[0]
 
 if added_rows > 0:
-    dfohlcv['date'] = pd.to_datetime(dfvol['date'], format='%Y-%m-%d')
+    dfohlcv['date'] = pd.to_datetime(dfohlcv['date'], format='%Y-%m-%d')
+    dfohlcv['volume'] = dfohlcv['volume'].astype('Int64')
     try:
         pandas_gbq.to_gbq(dfohlcv, f'market_data.{bq_table_id}', project_id='impvoltracker', if_exists='append')
         logger.info(f'Sucessfully pushed {added_rows} rows to TABLE {bq_table_id} on BQ')
@@ -143,24 +164,6 @@ else:
 
 cnx.close()
 
-# Fast forward DB using different my sql library for now, need to refactor
-connection = pymysql.connect(host='localhost', user='root')
-cursor = connection.cursor()
-# First options 
-cursor.execute('use options;')
-res = pd.read_sql('call dolt_pull();', connection)
-ff = bool(res.iloc[0,0])
-conflicts = res.iloc[0,1]
-logger.info(f'Fast forwarded database OPTIONS with ff equals {ff} and {conflicts} conflicts')
-cursor.close()
-cursor = connection.cursor()
-cursor.execute('use stocks;')
-res = pd.read_sql('call dolt_pull();', connection)
-ff = bool(res.iloc[0,0])
-conflicts = res.iloc[0,1]
-logger.info(f'Fast forwarded database STOCKS with ff equals {ff} and {conflicts} conflicts')
-cursor.close()
-connection.close()
 
 logger.info('========================== End of execution ===========================')
 
